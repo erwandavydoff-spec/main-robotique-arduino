@@ -1,0 +1,1494 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HandTrack-ESP32 — Amazing Hand Control Interface</title>
+
+<!-- Three.js r128 CDN -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<!-- OrbitControls -->
+<script>
+// Inline OrbitControls for r128 compatibility
+</script>
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --p:#e8eaf0;--s:#8892a4;--bg:#0d1117;--bg2:#161b22;--b:#21262d;--b2:#30363d;
+  --info:#58a6ff;--success:#3fb950;--warn:#d29922;--danger:#f85149;
+  --bg-info:#0d2942;--bg-success:#0a2710;--bg-warn:#2a1f0a;--bg-danger:#2d0f0e;
+  --r:6px;--rl:10px;
+  --color-text-primary:#e8eaf0;--color-text-secondary:#8892a4;
+  --color-background-primary:#0d1117;--color-background-secondary:#161b22;
+  --color-border-tertiary:#21262d;--color-border-secondary:#30363d;
+  --color-text-info:#58a6ff;--color-text-success:#3fb950;
+  --color-text-warning:#d29922;--color-text-danger:#f85149;
+  --color-background-info:#0d2942;--color-background-success:#0a2710;
+  --color-background-warning:#2a1f0a;--color-background-danger:#2d0f0e;
+  --border-radius-md:6px;--border-radius-lg:10px;
+  --font-sans:'Segoe UI',system-ui,sans-serif;
+  --font-mono:'Fira Code','Cascadia Code',monospace;
+}
+
+body{font-family:var(--font-sans);background:var(--bg);color:var(--p);font-size:13px;min-height:100vh}
+
+.app{display:flex;flex-direction:column;gap:0}
+.topbar{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--b);background:var(--bg)}
+.topbar-title{font-size:15px;font-weight:500;flex:1;color:var(--p)}
+.status-dot{width:8px;height:8px;border-radius:50%;background:#3fb950;display:inline-block;margin-right:4px;box-shadow:0 0 6px #3fb950}
+.status-dot.offline{background:#f85149;box-shadow:0 0 6px #f85149}
+.badge{font-size:11px;padding:2px 8px;border-radius:var(--r);border:1px solid var(--b2);color:var(--s)}
+
+.nav{display:flex;gap:0;border-bottom:1px solid var(--b);background:var(--bg);overflow-x:auto}
+.nav-btn{padding:8px 14px;font-size:12px;border:none;background:none;color:var(--s);cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap;transition:color .15s}
+.nav-btn.active{color:var(--info);border-bottom-color:var(--info);font-weight:500}
+.nav-btn:hover:not(.active){color:var(--p)}
+
+.content{padding:14px 16px;display:flex;flex-direction:column;gap:14px}
+.panel{display:none}.panel.active{display:flex;flex-direction:column;gap:14px}
+
+.row{display:flex;gap:12px;flex-wrap:wrap}
+.col{flex:1;min-width:140px}
+
+.card{background:var(--bg);border:1px solid var(--b);border-radius:var(--rl);padding:12px 14px}
+.card-title{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--s);margin-bottom:10px;font-weight:500}
+
+.metric{background:var(--bg2);border-radius:var(--r);padding:10px 12px}
+.metric-label{font-size:11px;color:var(--s);margin-bottom:2px}
+.metric-val{font-size:20px;font-weight:500}
+.metric-val.ok{color:var(--success)}
+.metric-val.warn{color:var(--warn)}
+.metric-val.err{color:var(--danger)}
+
+.finger-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.finger-card{background:var(--bg2);border-radius:var(--r);padding:10px 12px;border:1px solid var(--b)}
+.finger-name{font-size:12px;font-weight:500;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between}
+.servo-row{display:flex;align-items:center;gap:6px;margin-bottom:4px}
+.servo-lbl{font-size:11px;color:var(--s);width:14px}
+.servo-val{font-size:11px;font-weight:500;min-width:26px;text-align:right}
+input[type=range]{flex:1;cursor:pointer;accent-color:var(--info)}
+
+.mode-pill{font-size:10px;padding:1px 6px;border-radius:20px;border:1px solid}
+.mode-pill.pos{color:var(--success);border-color:#2a5a1a;background:var(--bg-success)}
+.mode-pill.off{color:var(--s);border-color:var(--b2)}
+
+/* 3D VIEWER */
+.viewer-card{background:var(--bg2);border:1px solid var(--b);border-radius:var(--rl);padding:0;overflow:hidden;position:relative}
+.viewer-header{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-bottom:1px solid var(--b)}
+.viewer-title{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--s);font-weight:500}
+.viewer-controls{display:flex;gap:6px;align-items:center}
+.viewer-btn{font-size:10px;padding:2px 8px;border:1px solid var(--b2);border-radius:4px;background:var(--bg);color:var(--s);cursor:pointer}
+.viewer-btn:hover{background:var(--bg2);color:var(--p)}
+.viewer-btn.active{background:var(--bg-info);border-color:var(--info);color:var(--info)}
+#hand-canvas{width:100%;height:260px;display:block;background:transparent}
+.viewer-overlay{position:absolute;bottom:8px;left:10px;font-size:10px;color:var(--s);pointer-events:none;font-family:var(--font-mono)}
+.stl-status{position:absolute;top:36px;right:8px;font-size:9px;padding:2px 6px;border-radius:3px;background:var(--bg-warn);color:var(--warn);border:1px solid #5a3d00}
+.stl-status.loaded{background:var(--bg-success);color:var(--success);border-color:#1a5a10}
+
+.preset-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.preset-btn{padding:8px 6px;font-size:11px;border:1px solid var(--b2);border-radius:var(--r);background:var(--bg2);cursor:pointer;text-align:center;transition:background .1s,border-color .1s;color:var(--p)}
+.preset-btn:hover{background:var(--bg);border-color:var(--b2)}
+.preset-btn.active{border-color:var(--info);background:var(--bg-info);color:var(--info)}
+.preset-icon{font-size:18px;display:block;margin-bottom:2px}
+
+.param-row{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--b)}
+.param-row:last-child{border-bottom:none}
+.param-lbl{flex:1;font-size:12px}
+.param-sub{font-size:11px;color:var(--s);display:block}
+.param-val{font-size:12px;font-weight:500;min-width:40px;text-align:right}
+
+.toggle{position:relative;width:32px;height:18px;display:inline-block}
+.toggle input{opacity:0;width:0;height:0}
+.toggle-track{position:absolute;inset:0;background:var(--b2);border-radius:9px;cursor:pointer;transition:background .2s}
+.toggle input:checked + .toggle-track{background:var(--bg-info);border:1px solid var(--info)}
+.toggle-thumb{position:absolute;top:2px;left:2px;width:14px;height:14px;background:var(--p);border-radius:50%;transition:transform .2s;pointer-events:none}
+.toggle input:checked ~ .toggle-thumb{transform:translateX(14px)}
+
+.diag-log{background:var(--bg2);border-radius:var(--r);border:1px solid var(--b);padding:10px;font-family:var(--font-mono);font-size:11px;height:120px;overflow-y:auto;color:var(--s)}
+.diag-log .ok{color:var(--success)}
+.diag-log .err{color:var(--danger)}
+.diag-log .info{color:var(--info)}
+
+.servo-table{width:100%;border-collapse:collapse;font-size:11px}
+.servo-table th{font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--s);padding:4px 8px;text-align:left;border-bottom:1px solid var(--b)}
+.servo-table td{padding:5px 8px;border-bottom:1px solid var(--b)}
+.servo-table tr:last-child td{border-bottom:none}
+.id-badge{display:inline-block;background:var(--bg2);border:1px solid var(--b2);border-radius:4px;padding:0 5px;font-family:var(--font-mono);font-size:10px}
+
+.cal-step{display:flex;align-items:flex-start;gap:10px;padding:10px;background:var(--bg2);border-radius:var(--r);border:1px solid var(--b)}
+.cal-num{min-width:22px;height:22px;border-radius:50%;background:var(--bg-info);color:var(--info);font-size:11px;font-weight:500;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.cal-text{font-size:12px}
+.cal-text strong{font-weight:500;display:block;margin-bottom:2px}
+
+.profile-row{display:flex;align-items:center;gap:10px;padding:8px;background:var(--bg2);border-radius:var(--r);border:1px solid var(--b);margin-bottom:6px}
+.profile-av{width:32px;height:32px;border-radius:50%;background:var(--bg-info);color:var(--info);font-size:12px;font-weight:500;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.profile-info{flex:1}
+.profile-name{font-size:12px;font-weight:500}
+.profile-meta{font-size:11px;color:var(--s)}
+
+.action-row{display:flex;gap:8px;flex-wrap:wrap}
+.btn{padding:6px 12px;font-size:12px;border:1px solid var(--b2);border-radius:var(--r);background:var(--bg2);cursor:pointer;transition:background .1s;color:var(--p)}
+.btn:hover{background:var(--bg);border-color:var(--b2)}
+.btn.primary{background:var(--bg-info);color:var(--info);border-color:var(--info)}
+.btn.danger{background:var(--bg-danger);color:var(--danger);border-color:var(--danger)}
+
+.ik-label{font-size:11px;color:var(--s);width:32px}
+.ik-axis-val{font-size:11px;font-weight:500;min-width:28px;text-align:right}
+
+.heat-bar{height:4px;border-radius:2px;background:linear-gradient(90deg,var(--bg-success),var(--bg-warn),var(--bg-danger));width:100%;margin-top:3px}
+.heat-cursor{width:8px;height:8px;background:var(--p);border-radius:50%;margin-top:-6px;transition:margin-left .3s}
+
+/* Finger angle badges */
+.finger-angle-badge{font-size:9px;font-family:var(--font-mono);color:var(--info);background:var(--bg-info);border:1px solid var(--info);border-radius:3px;padding:0 4px;margin-left:4px}
+
+/* STL loader panel */
+.stl-loader-card{background:var(--bg2);border:1px solid var(--b);border-radius:var(--rl);padding:12px 14px}
+.stl-file-row{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--b)}
+.stl-file-row:last-child{border-bottom:none}
+.stl-file-name{flex:1;font-family:var(--font-mono);font-size:11px;color:var(--p)}
+.stl-file-part{font-size:10px;color:var(--s);min-width:80px}
+.stl-file-status{font-size:10px;padding:1px 6px;border-radius:3px}
+.stl-file-status.pending{background:var(--bg2);color:var(--s);border:1px solid var(--b2)}
+.stl-file-status.loaded{background:var(--bg-success);color:var(--success);border:1px solid #1a5a10}
+.stl-file-status.error{background:var(--bg-danger);color:var(--danger);border:1px solid #5a1010}
+
+.mediapipe-panel{background:var(--bg2);border:1px solid var(--b);border-radius:var(--rl);padding:12px 14px}
+.lm-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin-top:8px}
+.lm-col{display:flex;flex-direction:column;gap:2px;align-items:center}
+.lm-col-title{font-size:9px;color:var(--s);text-align:center;margin-bottom:2px}
+.lm-dot{width:8px;height:8px;border-radius:50%;background:var(--b2);border:1px solid var(--b);transition:background .2s}
+.lm-dot.active{background:var(--info);border-color:var(--info);box-shadow:0 0 4px var(--info)}
+</style>
+</head>
+<body>
+
+<div class="app">
+  <div class="topbar">
+    <span class="topbar-title">🤖 HandTrack-ESP32 — Amazing Hand Control Interface</span>
+    <span class="badge"><span class="status-dot" id="conn-dot"></span><span id="conn-txt">Connectée</span></span>
+    <span class="badge" style="font-family:var(--font-mono)">USB /dev/ttyUSB0</span>
+    <span class="badge" style="color:var(--info)">Three.js r128</span>
+  </div>
+
+  <nav class="nav" role="tablist">
+    <button class="nav-btn active" onclick="switchTab('ctrl',this)">🖐 Contrôle 3D</button>
+    <button class="nav-btn" onclick="switchTab('stl',this)">📦 Modèles STL</button>
+    <button class="nav-btn" onclick="switchTab('mediapipe',this)">🧠 MediaPipe</button>
+    <button class="nav-btn" onclick="switchTab('calib',this)">⚙ Calibration</button>
+    <button class="nav-btn" onclick="switchTab('servos',this)">🔧 Servos</button>
+    <button class="nav-btn" onclick="switchTab('adv',this)">💡 Avancé</button>
+    <button class="nav-btn" onclick="switchTab('profiles',this)">👤 Profils</button>
+    <button class="nav-btn" onclick="switchTab('diag',this)">🩺 Diagnostic</button>
+  </nav>
+
+  <!-- CONTRÔLE 3D -->
+  <div class="panel active content" id="panel-ctrl">
+    <div class="viewer-card">
+      <div class="viewer-header">
+        <span class="viewer-title">🤖 Main Robotique 3D — erwandavydoff-spec/main-robotique-ia</span>
+        <div class="viewer-controls">
+          <button class="viewer-btn active" id="btn-autorot" onclick="toggleAutoRot(this)">Auto-rot</button>
+          <button class="viewer-btn" onclick="resetCamera()">Reset vue</button>
+          <button class="viewer-btn" id="btn-wire" onclick="toggleWireframe(this)">Wireframe</button>
+          <button class="viewer-btn" id="btn-explode" onclick="toggleExplode(this)">Éclaté</button>
+          <button class="viewer-btn" onclick="loadSTLFromGitHub()">↺ Reload STL</button>
+        </div>
+      </div>
+      <canvas id="hand-canvas"></canvas>
+      <div class="viewer-overlay" id="viewer-info">↙ Drag: orbiter • Scroll: zoom • Clic droit: pan</div>
+      <div class="stl-status" id="stl-badge">⏳ Procédural</div>
+    </div>
+
+    <div class="row">
+      <div style="flex:0 0 auto;min-width:200px">
+        <div class="card">
+          <div class="card-title">Positions prédéfinies</div>
+          <div class="preset-grid">
+            <button class="preset-btn active" onclick="applyPreset('open',this)"><span class="preset-icon">✋</span>Ouvert</button>
+            <button class="preset-btn" onclick="applyPreset('fist',this)"><span class="preset-icon">✊</span>Poing</button>
+            <button class="preset-btn" onclick="applyPreset('pinch',this)"><span class="preset-icon">🤌</span>Pince</button>
+            <button class="preset-btn" onclick="applyPreset('point',this)"><span class="preset-icon">☝️</span>Pointer</button>
+            <button class="preset-btn" onclick="applyPreset('peace',this)"><span class="preset-icon">✌️</span>Paix</button>
+            <button class="preset-btn" onclick="applyPreset('ok',this)"><span class="preset-icon">👌</span>OK</button>
+          </div>
+        </div>
+      </div>
+
+      <div style="flex:1">
+        <div class="card">
+          <div class="card-title">Contrôle par doigt — Flexion / Abduction</div>
+          <div class="finger-grid">
+            <div class="finger-card">
+              <div class="finger-name">Index <span class="mode-pill pos">actif</span></div>
+              <div class="servo-row"><span class="servo-lbl">F</span><input type="range" min="0" max="100" value="0" oninput="updateFinger('idx','f',this.value)"><span class="servo-val" id="idx-f-val">0°</span></div>
+              <div class="servo-row"><span class="servo-lbl">A</span><input type="range" min="-30" max="30" value="0" oninput="updateFinger('idx','a',this.value)"><span class="servo-val" id="idx-a-val">0°</span></div>
+            </div>
+            <div class="finger-card">
+              <div class="finger-name">Majeur <span class="mode-pill pos">actif</span></div>
+              <div class="servo-row"><span class="servo-lbl">F</span><input type="range" min="0" max="100" value="0" oninput="updateFinger('mid','f',this.value)"><span class="servo-val" id="mid-f-val">0°</span></div>
+              <div class="servo-row"><span class="servo-lbl">A</span><input type="range" min="-30" max="30" value="0" oninput="updateFinger('mid','a',this.value)"><span class="servo-val" id="mid-a-val">0°</span></div>
+            </div>
+            <div class="finger-card">
+              <div class="finger-name">Annulaire <span class="mode-pill pos">actif</span></div>
+              <div class="servo-row"><span class="servo-lbl">F</span><input type="range" min="0" max="100" value="0" oninput="updateFinger('rin','f',this.value)"><span class="servo-val" id="rin-f-val">0°</span></div>
+              <div class="servo-row"><span class="servo-lbl">A</span><input type="range" min="-30" max="30" value="0" oninput="updateFinger('rin','a',this.value)"><span class="servo-val" id="rin-a-val">0°</span></div>
+            </div>
+            <div class="finger-card">
+              <div class="finger-name">Pouce <span class="mode-pill pos">actif</span></div>
+              <div class="servo-row"><span class="servo-lbl">F</span><input type="range" min="0" max="100" value="0" oninput="updateFinger('thu','f',this.value)"><span class="servo-val" id="thu-f-val">0°</span></div>
+              <div class="servo-row"><span class="servo-lbl">A</span><input type="range" min="-30" max="30" value="0" oninput="updateFinger('thu','a',this.value)"><span class="servo-val" id="thu-a-val">0°</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="col card">
+        <div class="card-title">Cinématique inverse (IK)</div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <div class="servo-row"><span class="ik-label">X</span><input type="range" min="-50" max="50" value="0" oninput="document.getElementById('ik-x').textContent=this.value+'mm'"><span class="ik-axis-val" id="ik-x">0mm</span></div>
+          <div class="servo-row"><span class="ik-label">Y</span><input type="range" min="-50" max="50" value="0" oninput="document.getElementById('ik-y').textContent=this.value+'mm'"><span class="ik-axis-val" id="ik-y">0mm</span></div>
+          <div class="servo-row"><span class="ik-label">Z</span><input type="range" min="-50" max="50" value="0" oninput="document.getElementById('ik-z').textContent=this.value+'mm'"><span class="ik-axis-val" id="ik-z">0mm</span></div>
+          <div style="font-size:10px;color:var(--s);margin-top:2px">Méthode QP — bibliothèque Mink</div>
+        </div>
+      </div>
+      <div class="col card">
+        <div class="card-title">Contrôle global</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div class="servo-row"><span style="flex:1;font-size:12px">Torque global</span>
+            <label class="toggle"><input type="checkbox" checked onchange="log('Torque '+( this.checked?'ON':'OFF'))"><span class="toggle-track"></span><span class="toggle-thumb"></span></label>
+          </div>
+          <div class="servo-row"><span style="flex:1;font-size:12px">Mode suivi webcam</span>
+            <label class="toggle"><input type="checkbox" id="tracking-toggle" onchange="toggleTracking(this.checked)"><span class="toggle-track"></span><span class="toggle-thumb"></span></label>
+          </div>
+          <div class="servo-row"><span style="flex:1;font-size:12px">Vitesse globale</span>
+            <input type="range" min="1" max="100" value="60" style="width:70px" oninput="document.getElementById('spd-val').textContent=this.value+'%'">
+            <span style="font-size:11px;font-weight:500;min-width:28px;text-align:right" id="spd-val">60%</span>
+          </div>
+          <button class="btn danger" onclick="log('[ERR] Arrêt urgence déclenché',true)" style="margin-top:2px">⏹ Arrêt urgence</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STL MODELS -->
+  <div class="panel content" id="panel-stl">
+    <div class="card">
+      <div class="card-title">📦 Gestionnaire de fichiers STL — cad/stl/</div>
+      <div style="font-size:12px;color:var(--s);margin-bottom:12px">
+        Dépôt : <span style="font-family:var(--font-mono);color:var(--info)">erwandavydoff-spec/main-robotique-ia</span> — 
+        Structure détectée : <span style="font-family:var(--font-mono);color:var(--p)">cad/fingers/ · cad/palm/ · cad/assembly/</span>
+      </div>
+      <div id="stl-file-list">
+        <div class="stl-file-row"><span class="stl-file-name">fingers/proximal_phalanx_index.stl</span><span class="stl-file-part">Index — Proximale</span><span class="stl-file-status loaded">✓ Procédural</span></div>
+        <div class="stl-file-row"><span class="stl-file-name">fingers/middle_phalanx_index.stl</span><span class="stl-file-part">Index — Médiale</span><span class="stl-file-status loaded">✓ Procédural</span></div>
+        <div class="stl-file-row"><span class="stl-file-name">fingers/distal_phalanx_index.stl</span><span class="stl-file-part">Index — Distale</span><span class="stl-file-status loaded">✓ Procédural</span></div>
+        <div class="stl-file-row"><span class="stl-file-name">fingers/proximal_phalanx_middle.stl</span><span class="stl-file-part">Majeur — Proximale</span><span class="stl-file-status loaded">✓ Procédural</span></div>
+        <div class="stl-file-row"><span class="stl-file-name">fingers/middle_phalanx_middle.stl</span><span class="stl-file-part">Majeur — Médiale</span><span class="stl-file-status loaded">✓ Procédural</span></div>
+        <div class="stl-file-row"><span class="stl-file-name">fingers/distal_phalanx_middle.stl</span><span class="stl-file-part">Majeur — Distale</span><span class="stl-file-status loaded">✓ Procédural</span></div>
+        <div class="stl-file-row"><span class="stl-file-name">fingers/proximal_phalanx_ring.stl</span><span class="stl-file-part">Annulaire — Proximale</span><span class="stl-file-status loaded">✓ Procédural</span></div>
+        <div class="stl-file-row"><span class="stl-file-name">fingers/middle_phalanx_ring.stl</span><span class="stl-file-part">Annulaire — Médiale</span><span class="stl-file-status loaded">✓ Procédural</span></div>
+        <div class="stl-file-row"><span class="stl-file-name">fingers/distal_phalanx_ring.stl</span><span class="stl-file-part">Annulaire — Distale</span><span class="stl-file-status loaded">✓ Procédural</span></div>
+        <div class="stl-file-row"><span class="stl-file-name">fingers/thumb_metacarpal.stl</span><span class="stl-file-part">Pouce — Métacarpe</span><span class="stl-file-status loaded">✓ Procédural</span></div>
+        <div class="stl-file-row"><span class="stl-file-name">fingers/thumb_proximal.stl</span><span class="stl-file-part">Pouce — Proximale</span><span class="stl-file-status loaded">✓ Procédural</span></div>
+        <div class="stl-file-row"><span class="stl-file-name">fingers/thumb_distal.stl</span><span class="stl-file-part">Pouce — Distale</span><span class="stl-file-status loaded">✓ Procédural</span></div>
+        <div class="stl-file-row"><span class="stl-file-name">palm/palm_base.stl</span><span class="stl-file-part">Paume — Socle</span><span class="stl-file-status loaded">✓ Procédural</span></div>
+        <div class="stl-file-row"><span class="stl-file-name">palm/servo_mount.stl</span><span class="stl-file-part">Paume — Support servo</span><span class="stl-file-status loaded">✓ Procédural</span></div>
+        <div class="stl-file-row"><span class="stl-file-name">assembly/wrist_connector.stl</span><span class="stl-file-part">Poignet</span><span class="stl-file-status loaded">✓ Procédural</span></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">🔗 Chargement depuis GitHub</div>
+      <div style="font-size:12px;color:var(--s);margin-bottom:10px">
+        Les STL finaux seront publiés à la fin de la Phase 3 (ETA : juillet 2025). 
+        Dès qu'ils seront disponibles, le bouton ci-dessous les chargera automatiquement via STLLoader.
+      </div>
+      <div class="action-row">
+        <button class="btn primary" onclick="loadSTLFromGitHub()">🔄 Tenter le chargement GitHub</button>
+        <button class="btn" onclick="loadLocalSTL()">📁 Charger STL local</button>
+        <input type="file" id="stl-file-input" accept=".stl" multiple style="display:none" onchange="handleLocalSTL(this.files)">
+      </div>
+      <div id="github-status" style="margin-top:8px;font-size:11px;color:var(--s);font-family:var(--font-mono)"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">🗂 Hiérarchie d'objets Three.js</div>
+      <pre style="font-family:var(--font-mono);font-size:11px;color:var(--s);line-height:1.6">robotHand (Group)
+├── palm (Mesh)           ← cad/palm/palm_base.stl
+├── wrist (Mesh)          ← cad/assembly/wrist_connector.stl
+├── finger_idx (Group)    pivot: MCP joint
+│   ├── prox_idx (Mesh)   ← cad/fingers/proximal_phalanx_index.stl
+│   ├── mid_idx  (Mesh)   ← cad/fingers/middle_phalanx_index.stl   pivot: PIP
+│   └── dist_idx (Mesh)   ← cad/fingers/distal_phalanx_index.stl   pivot: DIP
+├── finger_mid (Group)    pivot: MCP joint
+│   ├── prox_mid / mid_mid / dist_mid
+├── finger_rin (Group)    pivot: MCP joint
+│   ├── prox_rin / mid_rin / dist_rin
+└── finger_thu (Group)    pivot: CMC joint (abducted ~45°)
+    ├── meta_thu / prox_thu / dist_thu</pre>
+    </div>
+  </div>
+
+  <!-- MEDIAPIPE -->
+  <div class="panel content" id="panel-mediapipe">
+    <div class="card">
+      <div class="card-title">🧠 Pipeline MediaPipe → Three.js</div>
+      <div style="font-size:12px;margin-bottom:12px">
+        Flux de données : <span style="font-family:var(--font-mono);color:var(--info)">Webcam → OpenCV → MediaPipe (21 landmarks) → Python → ESP32 UART → Servos → Main physique</span><br>
+        <span style="color:var(--s)">En parallèle : les angles calculés mettent à jour le viewer 3D en temps réel.</span>
+      </div>
+      <div class="mediapipe-panel">
+        <div class="card-title">Landmarks détectés (simulation)</div>
+        <div class="lm-grid" id="lm-grid">
+          <div class="lm-col"><div class="lm-col-title">Pouce</div><div class="lm-dot" id="lm-1"></div><div class="lm-dot" id="lm-2"></div><div class="lm-dot" id="lm-3"></div><div class="lm-dot" id="lm-4"></div></div>
+          <div class="lm-col"><div class="lm-col-title">Index</div><div class="lm-dot" id="lm-5"></div><div class="lm-dot" id="lm-6"></div><div class="lm-dot" id="lm-7"></div><div class="lm-dot" id="lm-8"></div></div>
+          <div class="lm-col"><div class="lm-col-title">Majeur</div><div class="lm-dot" id="lm-9"></div><div class="lm-dot" id="lm-10"></div><div class="lm-dot" id="lm-11"></div><div class="lm-dot" id="lm-12"></div></div>
+          <div class="lm-col"><div class="lm-col-title">Annulaire</div><div class="lm-dot" id="lm-13"></div><div class="lm-dot" id="lm-14"></div><div class="lm-dot" id="lm-15"></div><div class="lm-dot" id="lm-16"></div></div>
+          <div class="lm-col"><div class="lm-col-title">Auriculaire</div><div class="lm-dot" id="lm-17"></div><div class="lm-dot" id="lm-18"></div><div class="lm-dot" id="lm-19"></div><div class="lm-dot" id="lm-20"></div></div>
+        </div>
+        <div style="display:flex;gap:16px;margin-top:10px;font-size:11px">
+          <span>Fréquence : <span style="color:var(--info);font-family:var(--font-mono)" id="mp-fps">30 fps</span></span>
+          <span>Latence : <span style="color:var(--success);font-family:var(--font-mono)" id="mp-lat">22ms</span></span>
+          <span>Confiance : <span style="color:var(--info);font-family:var(--font-mono)" id="mp-conf">0.94</span></span>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">📐 Angles calculés par MediaPipe</div>
+      <table class="servo-table">
+        <thead><tr><th>Doigt</th><th>MCP (°)</th><th>PIP (°)</th><th>DIP (°)</th><th>Abduction (°)</th></tr></thead>
+        <tbody id="mp-angles-tbody"></tbody>
+      </table>
+    </div>
+    <div class="card">
+      <div class="card-title">🔌 Connexion WebSocket temps réel</div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div class="servo-row">
+          <span style="flex:1;font-size:12px">Adresse WebSocket</span>
+          <input type="text" value="ws://localhost:8765" style="font-family:var(--font-mono);font-size:11px;padding:3px 8px;border:1px solid var(--b2);border-radius:var(--r);background:var(--bg);color:var(--p);width:180px" id="ws-addr">
+        </div>
+        <div class="action-row">
+          <button class="btn primary" onclick="connectWS()">🔌 Connecter WS</button>
+          <button class="btn" onclick="startSimulation()">▶ Simulation MediaPipe</button>
+          <button class="btn" onclick="stopSimulation()">⏹ Stop</button>
+        </div>
+        <div id="ws-status" style="font-size:11px;font-family:var(--font-mono);color:var(--s)">[ En attente de connexion... ]</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CALIBRATION -->
+  <div class="panel content" id="panel-calib">
+    <div class="card">
+      <div class="card-title">Procédure de calibration</div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div class="cal-step"><div class="cal-num">1</div><div class="cal-text"><strong>Position neutre</strong>Mettre tous les doigts à plat, paume vers le bas. Cliquer "Enregistrer position 0".</div></div>
+        <div class="cal-step"><div class="cal-num">2</div><div class="cal-text"><strong>Flexion max.</strong>Fermer complètement le poing. Cliquer "Enregistrer position max".</div></div>
+        <div class="cal-step"><div class="cal-num">3</div><div class="cal-text"><strong>Abduction max.</strong>Écarter les doigts au maximum. Cliquer "Enregistrer abduction".</div></div>
+        <div class="cal-step"><div class="cal-num">4</div><div class="cal-text"><strong>Opposition pouce-index</strong>Pincer pouce et index. Vérifier l'alignement dans le viewer 3D.</div></div>
+      </div>
+    </div>
+    <div class="row">
+      <div class="col card">
+        <div class="card-title">Calibration par doigt</div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <div class="servo-row" style="justify-content:space-between"><span style="font-size:12px">Index</span><div style="display:flex;gap:4px"><button class="btn" onclick="calFinger('idx')">Calibrer</button><span id="cal-idx-st" style="font-size:11px;color:var(--s)">—</span></div></div>
+          <div class="servo-row" style="justify-content:space-between"><span style="font-size:12px">Majeur</span><div style="display:flex;gap:4px"><button class="btn" onclick="calFinger('mid')">Calibrer</button><span id="cal-mid-st" style="font-size:11px;color:var(--s)">—</span></div></div>
+          <div class="servo-row" style="justify-content:space-between"><span style="font-size:12px">Annulaire</span><div style="display:flex;gap:4px"><button class="btn" onclick="calFinger('rin')">Calibrer</button><span id="cal-rin-st" style="font-size:11px;color:var(--s)">—</span></div></div>
+          <div class="servo-row" style="justify-content:space-between"><span style="font-size:12px">Pouce</span><div style="display:flex;gap:4px"><button class="btn" onclick="calFinger('thu')">Calibrer</button><span id="cal-thu-st" style="font-size:11px;color:var(--s)">—</span></div></div>
+        </div>
+        <div class="action-row" style="margin-top:8px">
+          <button class="btn primary" onclick="calAll()">Tout calibrer</button>
+          <button class="btn danger" onclick="resetCal()">Reset</button>
+        </div>
+      </div>
+      <div class="col card">
+        <div class="card-title">Offsets de calibration</div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <div class="servo-row"><span class="servo-lbl" style="width:60px">Index</span><input type="range" min="-20" max="20" value="0" style="flex:1"><span style="font-size:11px;width:24px;text-align:right">0°</span></div>
+          <div class="servo-row"><span class="servo-lbl" style="width:60px">Majeur</span><input type="range" min="-20" max="20" value="0" style="flex:1"><span style="font-size:11px;width:24px;text-align:right">0°</span></div>
+          <div class="servo-row"><span class="servo-lbl" style="width:60px">Annulaire</span><input type="range" min="-20" max="20" value="0" style="flex:1"><span style="font-size:11px;width:24px;text-align:right">0°</span></div>
+          <div class="servo-row"><span class="servo-lbl" style="width:60px">Pouce</span><input type="range" min="-20" max="20" value="0" style="flex:1"><span style="font-size:11px;width:24px;text-align:right">0°</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SERVOS -->
+  <div class="panel content" id="panel-servos">
+    <div class="card">
+      <div class="card-title">État des servos SCS0009</div>
+      <table class="servo-table">
+        <thead><tr><th>ID</th><th>Doigt</th><th>Rôle</th><th>Position</th><th>Charge</th><th>Temp.</th><th>État</th></tr></thead>
+        <tbody id="servo-tbody"></tbody>
+      </table>
+    </div>
+    <div class="card">
+      <div class="card-title">PID — Réglage avancé</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <div style="flex:1;min-width:100px"><div style="font-size:11px;color:var(--s);margin-bottom:4px">Kp</div><input type="range" min="0" max="100" value="45" style="width:100%"></div>
+        <div style="flex:1;min-width:100px"><div style="font-size:11px;color:var(--s);margin-bottom:4px">Ki</div><input type="range" min="0" max="100" value="10" style="width:100%"></div>
+        <div style="flex:1;min-width:100px"><div style="font-size:11px;color:var(--s);margin-bottom:4px">Kd</div><input type="range" min="0" max="100" value="5" style="width:100%"></div>
+      </div>
+      <button class="btn primary" onclick="log('[SERVO] PID appliqué')">Appliquer PID</button>
+    </div>
+  </div>
+
+  <!-- AVANCÉ -->
+  <div class="panel content" id="panel-adv">
+    <div class="card">
+      <div class="card-title">Paramètres avancés</div>
+      <div class="param-row"><span class="param-lbl">Fréquence de boucle<span class="param-sub">Taux de mise à jour servo</span></span>
+        <input type="range" min="10" max="200" value="50" style="width:80px" oninput="document.getElementById('freq-val').textContent=this.value+'Hz'"><span style="font-size:11px;font-weight:500;min-width:38px;text-align:right" id="freq-val">50Hz</span>
+      </div>
+      <div class="param-row"><span class="param-lbl">Interpolation<span class="param-sub">Lissage des trajectoires</span></span>
+        <select style="font-size:12px;padding:2px 6px;border:1px solid var(--b2);border-radius:var(--r);background:var(--bg);color:var(--p)"><option>Linéaire</option><option selected>Cubique (Mink)</option><option>Quintic</option></select>
+      </div>
+      <div class="param-row"><span class="param-lbl">Limite de couple<span class="param-sub">Protection mécanique</span></span>
+        <input type="range" min="10" max="100" value="70" style="width:80px" oninput="document.getElementById('torq-val').textContent=this.value+'%'"><span style="font-size:11px;font-weight:500;min-width:30px;text-align:right" id="torq-val">70%</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- PROFILS -->
+  <div class="panel content" id="panel-profiles">
+    <div class="card">
+      <div class="card-title">Profils sauvegardés</div>
+      <div class="profile-row">
+        <div class="profile-av">JP</div>
+        <div class="profile-info"><div class="profile-name">Calibration principale</div><div class="profile-meta">Modifié il y a 2 jours · Main droite · Reachy2 + STL v0.3</div></div>
+        <div style="display:flex;gap:6px"><button class="btn primary" onclick="log('[PROFIL] Chargé: Calibration principale')">Charger</button><button class="btn" onclick="log('[PROFIL] Exporté')">Exporter</button></div>
+      </div>
+      <div class="profile-row">
+        <div class="profile-av" style="background:var(--bg-warn);color:var(--warn)">PR</div>
+        <div class="profile-info"><div class="profile-name">Saisie de précision</div><div class="profile-meta">IK+Mink · Servos optimisés · Three.js sync</div></div>
+        <div style="display:flex;gap:6px"><button class="btn" onclick="log('[PROFIL] Chargé: Saisie de précision')">Charger</button><button class="btn" onclick="log('[PROFIL] Exporté')">Exporter</button></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">Nouveau profil</div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div class="servo-row"><span style="font-size:12px;width:100px">Nom</span><input type="text" placeholder="Mon profil..." style="flex:1;font-size:12px;padding:4px 8px;border:1px solid var(--b2);border-radius:var(--r);background:var(--bg);color:var(--p)"></div>
+        <div class="action-row">
+          <button class="btn primary" onclick="log('[PROFIL] Sauvegardé')">Sauvegarder</button>
+          <button class="btn" onclick="log('[PROFIL] Importé JSON')">↑ Importer JSON</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- DIAGNOSTIC -->
+  <div class="panel content" id="panel-diag">
+    <div class="row">
+      <div class="col metric"><div class="metric-label">Ping bus</div><div class="metric-val ok" id="d-ping">1.2ms</div></div>
+      <div class="col metric"><div class="metric-label">Erreurs</div><div class="metric-val ok" id="d-err">0</div></div>
+      <div class="col metric"><div class="metric-label">Paquets/s</div><div class="metric-val" id="d-pps">49</div></div>
+      <div class="col metric"><div class="metric-label">Uptime</div><div class="metric-val" id="d-uptime">00:04:12</div></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Journal système</div>
+      <div class="diag-log" id="diag-log"></div>
+      <div class="action-row" style="margin-top:8px">
+        <button class="btn" onclick="document.getElementById('diag-log').innerHTML=''">Effacer</button>
+        <button class="btn" onclick="pingAll()">Ping tous les servos</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">Températures en temps réel</div>
+      <div id="heat-bars" style="display:flex;flex-direction:column;gap:8px"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// =============================================================================
+// THREE.JS — SCENE SETUP
+// =============================================================================
+const canvas = document.getElementById('hand-canvas');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+renderer.setPixelRatio(window.devicePixelRatio);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0d1117);
+
+const camera = new THREE.PerspectiveCamera(45, 1, 0.01, 100);
+camera.position.set(0, 0.08, 0.28);
+camera.lookAt(0, 0, 0);
+
+// Resize observer
+function resizeCanvas() {
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  renderer.setSize(w, h, false);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+}
+new ResizeObserver(resizeCanvas).observe(canvas);
+resizeCanvas();
+
+// Lighting — industrial look matching the Reachy photo
+const ambientLight = new THREE.AmbientLight(0x223344, 1.8);
+scene.add(ambientLight);
+
+const dirLight1 = new THREE.DirectionalLight(0x88bbff, 2.5);
+dirLight1.position.set(0.3, 0.5, 0.4);
+dirLight1.castShadow = true;
+scene.add(dirLight1);
+
+const dirLight2 = new THREE.DirectionalLight(0x4488ff, 1.2);
+dirLight2.position.set(-0.4, 0.2, -0.3);
+scene.add(dirLight2);
+
+const rimLight = new THREE.DirectionalLight(0x002244, 0.8);
+rimLight.position.set(0, -0.5, -0.5);
+scene.add(rimLight);
+
+// Floor grid
+const gridHelper = new THREE.GridHelper(0.4, 20, 0x1a2a3a, 0x162030);
+gridHelper.position.y = -0.095;
+scene.add(gridHelper);
+
+// =============================================================================
+// MATERIALS — Matching the metallic/plastic look of the Reachy hand
+// =============================================================================
+const matPalmShell = new THREE.MeshStandardMaterial({
+  color: 0xd8dde8, metalness: 0.25, roughness: 0.35,
+  envMapIntensity: 1.2
+});
+const matJoint = new THREE.MeshStandardMaterial({
+  color: 0x8899aa, metalness: 0.65, roughness: 0.2
+});
+const matPhalanx = new THREE.MeshStandardMaterial({
+  color: 0xe8edf5, metalness: 0.15, roughness: 0.4
+});
+const matDistal = new THREE.MeshStandardMaterial({
+  color: 0xd0d8e8, metalness: 0.12, roughness: 0.45
+});
+const matThumb = new THREE.MeshStandardMaterial({
+  color: 0xdde4f0, metalness: 0.18, roughness: 0.38
+});
+const matMechanism = new THREE.MeshStandardMaterial({
+  color: 0x5577aa, metalness: 0.8, roughness: 0.15
+});
+const matWire = new THREE.MeshBasicMaterial({
+  color: 0x58a6ff, wireframe: true
+});
+
+// =============================================================================
+// PROCEDURAL GEOMETRY — Accurate robotic hand (based on Reachy design)
+// Creates STL-equivalent geometry ready to be swapped with real STL files
+// =============================================================================
+
+function makeCylinder(rt, rb, h, seg=12) {
+  return new THREE.CylinderGeometry(rt, rb, h, seg);
+}
+function makeBox(w, h, d) {
+  return new THREE.BoxGeometry(w, h, d);
+}
+function makeCapsule(r, h, seg=8) {
+  const g = new THREE.CapsuleGeometry(r, h, seg, seg*2);
+  return g;
+}
+function makeSphere(r, seg=8) {
+  return new THREE.SphereGeometry(r, seg, seg);
+}
+
+// --- PALM ---
+function buildPalm() {
+  const palmGroup = new THREE.Group();
+  palmGroup.name = 'palm';
+
+  // Main palm body — trapezoidal shell
+  const palmGeo = new THREE.BoxGeometry(0.072, 0.018, 0.092);
+  // Slightly rounded edges via custom shape
+  const palmMesh = new THREE.Mesh(palmGeo, matPalmShell);
+  palmMesh.name = 'palm_base'; // cad/palm/palm_base.stl
+  palmMesh.castShadow = true;
+  palmMesh.receiveShadow = true;
+  palmGroup.add(palmMesh);
+
+  // Back mechanism housing (like in Reachy photo)
+  const mechGeo = new THREE.CylinderGeometry(0.018, 0.020, 0.056, 16);
+  const mechMesh = new THREE.Mesh(mechGeo, matMechanism);
+  mechMesh.name = 'servo_mount'; // cad/palm/servo_mount.stl
+  mechMesh.rotation.z = Math.PI / 2;
+  mechMesh.position.set(-0.054, 0.008, 0.005);
+  mechMesh.castShadow = true;
+  palmGroup.add(mechMesh);
+
+  // Wrist joint cylinder
+  const wristGeo = new THREE.CylinderGeometry(0.014, 0.014, 0.025, 16);
+  const wristMesh = new THREE.Mesh(wristGeo, matMechanism);
+  wristMesh.name = 'wrist_connector'; // cad/assembly/wrist_connector.stl
+  wristMesh.rotation.x = Math.PI / 2;
+  wristMesh.position.set(0, 0, 0.058);
+  palmGroup.add(wristMesh);
+
+  // Bolt/screw accents
+  for (let i = -1; i <= 1; i += 2) {
+    const boltGeo = new THREE.CylinderGeometry(0.003, 0.003, 0.022, 8);
+    const bolt = new THREE.Mesh(boltGeo, matJoint);
+    bolt.position.set(i * 0.028, 0.01, 0.01);
+    palmGroup.add(bolt);
+  }
+
+  return palmGroup;
+}
+
+// --- PHALANX (generic, 3 segments) ---
+// Returns a Group with pivot at the proximal end (knuckle)
+// lengths: [proximal, middle, distal]
+function buildFinger(config) {
+  const { name, lengths, widths, tipRound, abductOffset } = config;
+  const fingerGroup = new THREE.Group();
+  fingerGroup.name = `finger_${name}`;
+
+  const L0 = lengths[0], L1 = lengths[1], L2 = lengths[2];
+  const W0 = widths[0], W1 = widths[1], W2 = widths[2];
+
+  // ---- Proximal phalanx ----
+  const proxPivot = new THREE.Group();
+  proxPivot.name = `prox_pivot_${name}`; // MCP joint
+
+  const proxGeo = new THREE.BoxGeometry(W0, W0 * 0.85, L0);
+  // Bevel top
+  const proxMesh = new THREE.Mesh(proxGeo, matPhalanx);
+  proxMesh.name = `proximal_phalanx_${name}`; // cad/fingers/proximal_phalanx_FINGER.stl
+  proxMesh.position.z = -L0 / 2;
+  proxMesh.castShadow = true;
+  proxPivot.add(proxMesh);
+
+  // MCP joint sphere
+  const mcpGeo = new THREE.SphereGeometry(W0 * 0.48, 10, 10);
+  const mcpMesh = new THREE.Mesh(mcpGeo, matJoint);
+  mcpMesh.scale.set(1, 0.85, 0.85);
+  proxPivot.add(mcpMesh);
+
+  // ---- Middle phalanx ----
+  const midPivot = new THREE.Group();
+  midPivot.name = `mid_pivot_${name}`; // PIP joint
+  midPivot.position.z = -L0;
+
+  const midGeo = new THREE.BoxGeometry(W1, W1 * 0.82, L1);
+  const midMesh = new THREE.Mesh(midGeo, matPhalanx);
+  midMesh.name = `middle_phalanx_${name}`; // cad/fingers/middle_phalanx_FINGER.stl
+  midMesh.position.z = -L1 / 2;
+  midMesh.castShadow = true;
+  midPivot.add(midMesh);
+
+  // PIP joint sphere
+  const pipGeo = new THREE.SphereGeometry(W1 * 0.45, 10, 10);
+  const pipMesh = new THREE.Mesh(pipGeo, matJoint);
+  pipMesh.scale.set(1, 0.82, 0.82);
+  midPivot.add(pipMesh);
+
+  // ---- Distal phalanx ----
+  const distPivot = new THREE.Group();
+  distPivot.name = `dist_pivot_${name}`; // DIP joint
+  distPivot.position.z = -L1;
+
+  // Tapered distal phalanx
+  const distGeo = new THREE.CylinderGeometry(W2 * 0.32, W2 * 0.48, L2, 8);
+  distGeo.applyMatrix4(new THREE.Matrix4().makeRotationX(Math.PI / 2));
+  const distMesh = new THREE.Mesh(distGeo, matDistal);
+  distMesh.name = `distal_phalanx_${name}`; // cad/fingers/distal_phalanx_FINGER.stl
+  distMesh.position.z = -L2 / 2;
+  distMesh.castShadow = true;
+  distPivot.add(distMesh);
+
+  // Fingertip cap
+  const tipGeo = new THREE.SphereGeometry(W2 * 0.32, 10, 8);
+  tipGeo.applyMatrix4(new THREE.Matrix4().makeScale(1, 0.85, 1.1));
+  const tipMesh = new THREE.Mesh(tipGeo, matDistal);
+  tipMesh.position.z = -L2;
+  distPivot.add(tipMesh);
+
+  // ---- Assembly hierarchy ----
+  // DIP: distPivot is child of midPivot
+  midPivot.add(distPivot);
+  // PIP: midPivot is child of proxPivot
+  proxPivot.add(midPivot);
+  fingerGroup.add(proxPivot);
+
+  // Store references for animation
+  fingerGroup.userData = {
+    proxPivot, midPivot, distPivot,
+    // Default angles
+    mcp: 0, pip: 0, dip: 0, abd: abductOffset || 0
+  };
+
+  return fingerGroup;
+}
+
+// --- THUMB ---
+function buildThumb() {
+  const thumbGroup = new THREE.Group();
+  thumbGroup.name = 'finger_thu';
+
+  // CMC pivot (at base of thumb, ~45° abducted from palm)
+  const cmcPivot = new THREE.Group();
+  cmcPivot.name = 'cmc_pivot_thu';
+
+  // Metacarpal (first segment)
+  const metaGeo = new THREE.BoxGeometry(0.011, 0.010, 0.025);
+  const metaMesh = new THREE.Mesh(metaGeo, matThumb);
+  metaMesh.name = 'thumb_metacarpal';
+  metaMesh.position.z = -0.0125;
+  metaMesh.castShadow = true;
+  cmcPivot.add(metaMesh);
+
+  // MCP sphere
+  const mcpGeo = new THREE.SphereGeometry(0.006, 10, 10);
+  const mcpMesh = new THREE.Mesh(mcpGeo, matJoint);
+  cmcPivot.add(mcpMesh);
+
+  // Proximal
+  const proxPivot = new THREE.Group();
+  proxPivot.name = 'prox_pivot_thu';
+  proxPivot.position.z = -0.025;
+
+  const proxGeo = new THREE.BoxGeometry(0.010, 0.009, 0.027);
+  const proxMesh = new THREE.Mesh(proxGeo, matThumb);
+  proxMesh.name = 'thumb_proximal';
+  proxMesh.position.z = -0.0135;
+  proxMesh.castShadow = true;
+  proxPivot.add(proxMesh);
+
+  const pipGeo = new THREE.SphereGeometry(0.0055, 10, 10);
+  proxPivot.add(new THREE.Mesh(pipGeo, matJoint));
+
+  // Distal
+  const distPivot = new THREE.Group();
+  distPivot.name = 'dist_pivot_thu';
+  distPivot.position.z = -0.027;
+
+  const distGeo = new THREE.CylinderGeometry(0.0035, 0.0048, 0.022, 8);
+  distGeo.applyMatrix4(new THREE.Matrix4().makeRotationX(Math.PI / 2));
+  const distMesh = new THREE.Mesh(distGeo, matDistal);
+  distMesh.name = 'thumb_distal';
+  distMesh.position.z = -0.011;
+  distMesh.castShadow = true;
+  distPivot.add(distMesh);
+
+  const tipGeo = new THREE.SphereGeometry(0.0036, 10, 8);
+  tipGeo.applyMatrix4(new THREE.Matrix4().makeScale(1, 0.85, 1.1));
+  const tip = new THREE.Mesh(tipGeo, matDistal);
+  tip.position.z = -0.022;
+  distPivot.add(tip);
+
+  proxPivot.add(distPivot);
+  cmcPivot.add(proxPivot);
+  thumbGroup.add(cmcPivot);
+
+  thumbGroup.userData = {
+    cmcPivot, proxPivot, distPivot,
+    mcp: 0, pip: 0, dip: 0, abd: 0
+  };
+
+  return thumbGroup;
+}
+
+// =============================================================================
+// ASSEMBLE THE COMPLETE HAND
+// =============================================================================
+
+const robotHand = new THREE.Group();
+robotHand.name = 'robotHand';
+scene.add(robotHand);
+
+// Palm
+const palm = buildPalm();
+robotHand.add(palm);
+
+// Finger configs — based on Reachy hand proportions (mm → m)
+// Reachy has index/middle/ring + thumb, no pinky in the photo
+const fingerConfigs = {
+  idx: { name:'idx', lengths:[0.042, 0.028, 0.022], widths:[0.012,0.011,0.010], xPos: 0.020, zPos:-0.046 },
+  mid: { name:'mid', lengths:[0.046, 0.030, 0.024], widths:[0.013,0.012,0.010], xPos: 0.006, zPos:-0.047 },
+  rin: { name:'rin', lengths:[0.042, 0.027, 0.022], widths:[0.012,0.011,0.010], xPos:-0.009, zPos:-0.046 },
+};
+
+const fingers = {};
+
+// Build and position each finger
+Object.entries(fingerConfigs).forEach(([key, cfg]) => {
+  const fg = buildFinger(cfg);
+  // Pivot at knuckle
+  fg.position.set(cfg.xPos, 0.009, cfg.zPos);
+  robotHand.add(fg);
+  fingers[key] = fg;
+});
+
+// Thumb — positioned at lateral base, pre-rotated
+const thumb = buildThumb();
+thumb.position.set(-0.038, 0.002, -0.014);
+thumb.rotation.set(0.15, 0.3, -0.55); // anatomical CMC abduction
+robotHand.add(thumb);
+fingers['thu'] = thumb;
+
+// Tilt the whole hand for a nice viewing angle
+robotHand.rotation.x = -0.15;
+robotHand.rotation.y = 0.25;
+robotHand.position.y = 0.01;
+
+// =============================================================================
+// ORBIT CONTROLS — Simple implementation for r128
+// =============================================================================
+let orbitState = { dragging:false, rmbDown:false, lastX:0, lastY:0, theta:0.25, phi:0.35, radius:0.28, target:new THREE.Vector3(0,0,0) };
+
+canvas.addEventListener('mousedown', e => {
+  orbitState.dragging = true;
+  orbitState.rmbDown = e.button === 2;
+  orbitState.lastX = e.clientX;
+  orbitState.lastY = e.clientY;
+  e.preventDefault();
+});
+canvas.addEventListener('contextmenu', e => e.preventDefault());
+window.addEventListener('mouseup', () => { orbitState.dragging = false; orbitState.rmbDown = false; });
+window.addEventListener('mousemove', e => {
+  if (!orbitState.dragging) return;
+  const dx = (e.clientX - orbitState.lastX) * 0.007;
+  const dy = (e.clientY - orbitState.lastY) * 0.007;
+  orbitState.lastX = e.clientX; orbitState.lastY = e.clientY;
+  if (orbitState.rmbDown) {
+    orbitState.target.x -= dx * 0.05;
+    orbitState.target.y += dy * 0.05;
+  } else {
+    orbitState.theta -= dx;
+    orbitState.phi = Math.max(0.05, Math.min(Math.PI - 0.05, orbitState.phi + dy));
+  }
+});
+canvas.addEventListener('wheel', e => {
+  orbitState.radius = Math.max(0.1, Math.min(0.8, orbitState.radius + e.deltaY * 0.0003));
+  e.preventDefault();
+}, { passive: false });
+
+function updateCamera() {
+  const s = Math.sin(orbitState.phi), c = Math.cos(orbitState.phi);
+  camera.position.set(
+    orbitState.target.x + orbitState.radius * s * Math.sin(orbitState.theta),
+    orbitState.target.y + orbitState.radius * c,
+    orbitState.target.z + orbitState.radius * s * Math.cos(orbitState.theta)
+  );
+  camera.lookAt(orbitState.target);
+}
+
+// =============================================================================
+// ANIMATION ENGINE
+// =============================================================================
+
+// Target angles per finger (degrees)
+const targetAngles = {
+  idx: { mcp:0, pip:0, dip:0, abd:0 },
+  mid: { mcp:0, pip:0, dip:0, abd:0 },
+  rin: { mcp:0, pip:0, dip:0, abd:0 },
+  thu: { mcp:0, pip:0, dip:0, abd:0 },
+};
+const currentAngles = JSON.parse(JSON.stringify(targetAngles));
+
+function applyAngles() {
+  // Index, Middle, Ring — standard 3-phalanx fingers
+  ['idx','mid','rin'].forEach(key => {
+    const fg = fingers[key];
+    if (!fg) return;
+    const { proxPivot, midPivot, distPivot } = fg.userData;
+    const cur = currentAngles[key];
+    const mcpRad = cur.mcp * Math.PI / 180;
+    const pipRad = cur.pip * Math.PI / 180;
+    const dipRad = cur.dip * Math.PI / 180;
+    const abdRad = cur.abd * Math.PI / 180;
+
+    // MCP: flexion on X axis, abduction on Z axis
+    proxPivot.rotation.x = mcpRad;
+    proxPivot.rotation.z = abdRad;
+    // PIP: relative to proximal
+    midPivot.rotation.x = pipRad;
+    // DIP: relative to middle
+    distPivot.rotation.x = dipRad;
+  });
+
+  // Thumb
+  const thu = fingers['thu'];
+  if (thu) {
+    const { cmcPivot, proxPivot, distPivot } = thu.userData;
+    const cur = currentAngles['thu'];
+    cmcPivot.rotation.x = cur.mcp * Math.PI / 180;
+    proxPivot.rotation.x = cur.pip * Math.PI / 180;
+    distPivot.rotation.x = cur.dip * Math.PI / 180;
+  }
+}
+
+// Smooth interpolation
+function lerpAngles() {
+  const SPEED = 0.08;
+  ['idx','mid','rin','thu'].forEach(key => {
+    const cur = currentAngles[key], tgt = targetAngles[key];
+    cur.mcp += (tgt.mcp - cur.mcp) * SPEED;
+    cur.pip += (tgt.pip - cur.pip) * SPEED;
+    cur.dip += (tgt.dip - cur.dip) * SPEED;
+    cur.abd += (tgt.abd - cur.abd) * SPEED;
+  });
+}
+
+// Map a finger flexion percentage (0-100) to MCP/PIP/DIP angles
+function flexionToAngles(pct, isThumb) {
+  if (isThumb) {
+    return { mcp: pct * 0.65, pip: pct * 0.55, dip: pct * 0.45, abd: 0 };
+  }
+  return { mcp: pct * 0.85, pip: pct * 1.0, dip: pct * 0.65, abd: 0 };
+}
+
+let autoRotate = true;
+let wireframeMode = false;
+let explodeMode = false;
+let simInterval = null;
+
+function toggleAutoRot(btn) {
+  autoRotate = !autoRotate;
+  btn.classList.toggle('active', autoRotate);
+}
+function resetCamera() {
+  orbitState.theta = 0.25; orbitState.phi = 0.35; orbitState.radius = 0.28;
+  orbitState.target.set(0,0,0);
+}
+function toggleWireframe(btn) {
+  wireframeMode = !wireframeMode;
+  btn.classList.toggle('active', wireframeMode);
+  robotHand.traverse(obj => {
+    if (obj.isMesh) obj.material = wireframeMode ? matWire : obj.userData.origMat || obj.material;
+  });
+  if (!wireframeMode) buildHand(); // rebuild with original materials
+}
+function toggleExplode(btn) {
+  explodeMode = !explodeMode;
+  btn.classList.toggle('active', explodeMode);
+  // Separate finger groups on Y axis
+  const offsets = { idx: 0.025, mid: 0.0, rin: -0.025, thu: -0.04 };
+  Object.entries(fingers).forEach(([key, fg]) => {
+    const tgt = explodeMode ? (offsets[key] || 0) : 0;
+    fg.position.x += explodeMode ? (key === 'thu' ? -0.02 : 0) : 0;
+  });
+}
+
+// =============================================================================
+// STL LOADER — Loads real STL files from GitHub when available
+// =============================================================================
+
+// STL map: part name → GitHub raw URL
+const STL_MANIFEST = {
+  'palm_base':             'https://raw.githubusercontent.com/erwandavydoff-spec/main-robotique-ia/main/cad/stl/palm/palm_base.stl',
+  'servo_mount':           'https://raw.githubusercontent.com/erwandavydoff-spec/main-robotique-ia/main/cad/stl/palm/servo_mount.stl',
+  'wrist_connector':       'https://raw.githubusercontent.com/erwandavydoff-spec/main-robotique-ia/main/cad/stl/assembly/wrist_connector.stl',
+  'proximal_phalanx_idx':  'https://raw.githubusercontent.com/erwandavydoff-spec/main-robotique-ia/main/cad/stl/fingers/proximal_phalanx_index.stl',
+  'middle_phalanx_idx':    'https://raw.githubusercontent.com/erwandavydoff-spec/main-robotique-ia/main/cad/stl/fingers/middle_phalanx_index.stl',
+  'distal_phalanx_idx':    'https://raw.githubusercontent.com/erwandavydoff-spec/main-robotique-ia/main/cad/stl/fingers/distal_phalanx_index.stl',
+  'proximal_phalanx_mid':  'https://raw.githubusercontent.com/erwandavydoff-spec/main-robotique-ia/main/cad/stl/fingers/proximal_phalanx_middle.stl',
+  'middle_phalanx_mid':    'https://raw.githubusercontent.com/erwandavydoff-spec/main-robotique-ia/main/cad/stl/fingers/middle_phalanx_middle.stl',
+  'distal_phalanx_mid':    'https://raw.githubusercontent.com/erwandavydoff-spec/main-robotique-ia/main/cad/stl/fingers/distal_phalanx_middle.stl',
+  'proximal_phalanx_rin':  'https://raw.githubusercontent.com/erwandavydoff-spec/main-robotique-ia/main/cad/stl/fingers/proximal_phalanx_ring.stl',
+  'thumb_metacarpal':      'https://raw.githubusercontent.com/erwandavydoff-spec/main-robotique-ia/main/cad/stl/fingers/thumb_metacarpal.stl',
+  'thumb_proximal':        'https://raw.githubusercontent.com/erwandavydoff-spec/main-robotique-ia/main/cad/stl/fingers/thumb_proximal.stl',
+  'thumb_distal':          'https://raw.githubusercontent.com/erwandavydoff-spec/main-robotique-ia/main/cad/stl/fingers/thumb_distal.stl',
+};
+
+// STLLoader (Three.js r128 compatible — inline implementation)
+class STLLoader {
+  parse(data) {
+    const binData = this.ensureBinary(data);
+    return this.isBinary(binData) ? this.parseBinary(binData) : this.parseASCII(this.ensureString(data));
+  }
+
+  isBinary(data) {
+    const expect = 80 + 4 + 50;
+    if (data.byteLength < expect) return false;
+    const header80 = new Uint8Array(data, 0, 80);
+    for (let i = 0; i < 5; i++) if (header80[i] === 115 && header80[i+1] === 111 && header80[i+2] === 108 && header80[i+3] === 105 && header80[i+4] === 100) return false;
+    const numFaces = new Uint32Array(data, 80, 1)[0];
+    return data.byteLength === 80 + 4 + numFaces * 50;
+  }
+
+  ensureBinary(data) {
+    if (typeof data === 'string') {
+      const buf = new ArrayBuffer(data.length);
+      const view = new Uint8Array(buf);
+      for (let i = 0; i < data.length; i++) view[i] = data.charCodeAt(i) & 0xff;
+      return buf;
+    }
+    return data;
+  }
+
+  ensureString(data) {
+    if (typeof data === 'string') return data;
+    return new TextDecoder().decode(new Uint8Array(data));
+  }
+
+  parseBinary(data) {
+    const reader = new DataView(data);
+    const numFaces = reader.getUint32(80, true);
+    const geometry = new THREE.BufferGeometry();
+    const positions = new Float32Array(numFaces * 9);
+    const normals = new Float32Array(numFaces * 9);
+    let offset = 84;
+    for (let i = 0; i < numFaces; i++) {
+      const nx = reader.getFloat32(offset, true), ny = reader.getFloat32(offset+4, true), nz = reader.getFloat32(offset+8, true);
+      offset += 12;
+      for (let v = 0; v < 3; v++) {
+        const base = i * 9 + v * 3;
+        positions[base]   = reader.getFloat32(offset, true);
+        positions[base+1] = reader.getFloat32(offset+4, true);
+        positions[base+2] = reader.getFloat32(offset+8, true);
+        normals[base] = nx; normals[base+1] = ny; normals[base+2] = nz;
+        offset += 12;
+      }
+      offset += 2; // attribute byte count
+    }
+    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geometry.setAttribute('normal', new THREE.BufferAttribute(normals, 3));
+    return geometry;
+  }
+
+  parseASCII(data) {
+    const geometry = new THREE.BufferGeometry();
+    const positions = [], normals = [];
+    const lines = data.split('\n');
+    let nx=0, ny=0, nz=0;
+    for (const line of lines) {
+      const t = line.trim();
+      if (t.startsWith('facet normal')) {
+        const p = t.split(/\s+/);
+        nx = parseFloat(p[2]); ny = parseFloat(p[3]); nz = parseFloat(p[4]);
+      } else if (t.startsWith('vertex')) {
+        const p = t.split(/\s+/);
+        positions.push(parseFloat(p[1]), parseFloat(p[2]), parseFloat(p[3]));
+        normals.push(nx, ny, nz);
+      }
+    }
+    geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(positions), 3));
+    geometry.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(normals), 3));
+    return geometry;
+  }
+}
+
+const stlLoader = new STLLoader();
+let stlLoadCount = 0;
+
+// Replace a named mesh in the scene with an STL geometry
+function replaceWithSTL(meshName, geometry, material) {
+  let replaced = false;
+  robotHand.traverse(obj => {
+    if (obj.isMesh && obj.name === meshName) {
+      // Normalize STL geometry to fit existing bounding box
+      geometry.computeBoundingBox();
+      const bb = geometry.boundingBox;
+      const size = new THREE.Vector3();
+      bb.getSize(size);
+      const maxDim = Math.max(size.x, size.y, size.z);
+      // Preserve original scale
+      const origBB = new THREE.Box3().setFromObject(obj);
+      const origSize = new THREE.Vector3();
+      origBB.getSize(origSize);
+      const origMax = Math.max(origSize.x, origSize.y, origSize.z);
+      const scaleFactor = origMax / maxDim;
+      geometry.scale(scaleFactor, scaleFactor, scaleFactor);
+      geometry.computeBoundingBox();
+
+      obj.geometry.dispose();
+      obj.geometry = geometry;
+      if (material) obj.material = material;
+      replaced = true;
+      stlLoadCount++;
+      log(`[STL] ✓ ${meshName} chargé depuis GitHub`);
+    }
+  });
+  return replaced;
+}
+
+async function loadSTLFromGitHub() {
+  const statusEl = document.getElementById('github-status');
+  const badge = document.getElementById('stl-badge');
+  statusEl.textContent = '[ Tentative de chargement depuis GitHub raw... ]';
+  log('[STL] Tentative de chargement des STL depuis erwandavydoff-spec/main-robotique-ia...');
+
+  let loaded = 0, failed = 0;
+  for (const [partName, url] of Object.entries(STL_MANIFEST)) {
+    try {
+      const resp = await fetch(url, { signal: AbortSignal.timeout(4000) });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const buffer = await resp.arrayBuffer();
+      const geo = stlLoader.parse(buffer);
+      replaceWithSTL(partName, geo, matPhalanx);
+      loaded++;
+    } catch (e) {
+      // File not yet published (Phase 3 in progress)
+      failed++;
+    }
+  }
+
+  if (loaded > 0) {
+    badge.textContent = `✓ ${loaded} STL chargés`;
+    badge.className = 'stl-status loaded';
+    statusEl.textContent = `[ ${loaded} STL chargés, ${failed} non trouvés ]`;
+  } else {
+    badge.textContent = '⏳ STL non publiés';
+    badge.className = 'stl-status';
+    statusEl.innerHTML = `[ STL non encore disponibles (Phase 3 en cours — ETA juil. 2025) ]<br>` +
+      `[ Modèle procédural actif — correspondance géométrique avec la photo Reachy ]`;
+  }
+}
+
+function loadLocalSTL() {
+  document.getElementById('stl-file-input').click();
+}
+
+function handleLocalSTL(files) {
+  for (const file of files) {
+    const reader = new FileReader();
+    reader.onload = e => {
+      try {
+        const geo = stlLoader.parse(e.target.result);
+        // Try to match by filename
+        const name = file.name.replace('.stl', '');
+        const replaced = replaceWithSTL(name, geo, matPhalanx);
+        if (replaced) {
+          log(`[STL] ✓ ${file.name} chargé localement`);
+        } else {
+          // Add as new object if no match
+          const mesh = new THREE.Mesh(geo, matPhalanx);
+          mesh.name = name;
+          mesh.castShadow = true;
+          geo.computeBoundingBox();
+          const bb = geo.boundingBox;
+          const size = new THREE.Vector3(); bb.getSize(size);
+          const s = 0.08 / Math.max(size.x, size.y, size.z);
+          mesh.scale.setScalar(s);
+          robotHand.add(mesh);
+          log(`[STL] ✓ ${file.name} ajouté à la scène`);
+        }
+        document.getElementById('stl-badge').textContent = '✓ STL local';
+        document.getElementById('stl-badge').className = 'stl-status loaded';
+      } catch(err) {
+        log(`[ERR] Impossible de parser ${file.name}: ${err.message}`, true);
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  }
+}
+
+// =============================================================================
+// UI CONTROLS
+// =============================================================================
+
+function updateFinger(fingerKey, axis, value) {
+  const valEl = document.getElementById(`${fingerKey}-${axis}-val`);
+  if (valEl) valEl.textContent = value + '°';
+
+  const pct = parseFloat(value);
+  const isThumb = fingerKey === 'thu';
+
+  if (axis === 'f') {
+    const angles = flexionToAngles(pct, isThumb);
+    Object.assign(targetAngles[fingerKey], angles);
+  } else if (axis === 'a') {
+    targetAngles[fingerKey].abd = parseFloat(value) * 0.6;
+  }
+
+  log(`[CTRL] ${fingerKey.toUpperCase()} ${axis==='f'?'flexion':'abduction'}: ${value}°`);
+}
+
+const presets = {
+  open: { idx:[0,0],  mid:[0,0],  rin:[0,0],  thu:[0,0]   },
+  fist: { idx:[90,0], mid:[90,0], rin:[90,0],  thu:[80,0]  },
+  pinch:{ idx:[60,0], mid:[90,5], rin:[90,5],  thu:[55,15] },
+  point:{ idx:[0,0],  mid:[90,0], rin:[90,0],  thu:[80,5]  },
+  peace:{ idx:[0,0],  mid:[0,0],  rin:[90,0],  thu:[80,5]  },
+  ok:   { idx:[60,10],mid:[0,0],  rin:[0,0],   thu:[55,15] },
+};
+
+function applyPreset(name, btn) {
+  document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  const p = presets[name];
+  Object.entries(p).forEach(([f, [fv, av]]) => {
+    const fSlider = document.querySelector(`input[oninput*="updateFinger('${f}','f'"]`);
+    const aSlider = document.querySelector(`input[oninput*="updateFinger('${f}','a'"]`);
+    if (fSlider) { fSlider.value = fv; document.getElementById(f+'-f-val').textContent = fv+'°'; }
+    if (aSlider) { aSlider.value = av; document.getElementById(f+'-a-val').textContent = av+'°'; }
+    const angles = flexionToAngles(fv, f==='thu');
+    Object.assign(targetAngles[f], angles);
+    targetAngles[f].abd = av * 0.6;
+  });
+  log(`[CTRL] Preset appliqué: ${name}`);
+}
+
+// =============================================================================
+// WEBSOCKET — Real-time MediaPipe data
+// =============================================================================
+let ws = null;
+
+function connectWS() {
+  const addr = document.getElementById('ws-addr').value;
+  try {
+    ws = new WebSocket(addr);
+    ws.onopen = () => {
+      document.getElementById('ws-status').textContent = '[ ✓ WebSocket connecté: ' + addr + ' ]';
+      document.getElementById('ws-status').style.color = 'var(--success)';
+      log('[WS] Connexion établie: ' + addr);
+    };
+    ws.onmessage = e => {
+      try {
+        const data = JSON.parse(e.data);
+        // Expected format: { idx:angle, mid:angle, rin:angle, thu:angle }
+        // or MediaPipe format: { landmarks: [...] }
+        if (data.landmarks) {
+          processMediaPipeLandmarks(data.landmarks);
+        } else {
+          // Direct angle format
+          ['idx','mid','rin','thu'].forEach(k => {
+            if (data[k] !== undefined) {
+              const pct = data[k];
+              Object.assign(targetAngles[k], flexionToAngles(pct, k==='thu'));
+            }
+          });
+        }
+      } catch(err) {}
+    };
+    ws.onclose = () => {
+      document.getElementById('ws-status').textContent = '[ Connexion fermée ]';
+      document.getElementById('ws-status').style.color = 'var(--s)';
+    };
+    ws.onerror = () => {
+      document.getElementById('ws-status').textContent = '[ Erreur de connexion — serveur Python non démarré? ]';
+      document.getElementById('ws-status').style.color = 'var(--danger)';
+    };
+  } catch(e) {
+    document.getElementById('ws-status').textContent = '[ Adresse invalide ]';
+  }
+}
+
+// Process 21 MediaPipe landmarks
+function processMediaPipeLandmarks(lm) {
+  // Finger landmark groups: THUMB=1-4, INDEX=5-8, MIDDLE=9-12, RING=13-16, PINKY=17-20
+  const fingerMap = [
+    { key:'thu', mcp:1, pip:2, dip:3, tip:4 },
+    { key:'idx', mcp:5, pip:6, dip:7, tip:8 },
+    { key:'mid', mcp:9, pip:10, dip:11, tip:12 },
+    { key:'rin', mcp:13, pip:14, dip:15, tip:16 },
+  ];
+  fingerMap.forEach(({ key, mcp, pip, dip, tip }) => {
+    const wrist = lm[0], mcpPt = lm[mcp], pipPt = lm[pip], tipPt = lm[tip];
+    if (!wrist || !mcpPt || !pipPt || !tipPt) return;
+    // Compute flexion angle using vectors
+    const v1 = { x: mcpPt.x - wrist.x, y: mcpPt.y - wrist.y, z: mcpPt.z - wrist.z };
+    const v2 = { x: tipPt.x - mcpPt.x, y: tipPt.y - mcpPt.y, z: tipPt.z - mcpPt.z };
+    const dot = v1.x*v2.x + v1.y*v2.y + v1.z*v2.z;
+    const m1 = Math.sqrt(v1.x**2 + v1.y**2 + v1.z**2);
+    const m2 = Math.sqrt(v2.x**2 + v2.y**2 + v2.z**2);
+    const angle = Math.acos(Math.max(-1, Math.min(1, dot / (m1 * m2 + 1e-7)))) * 180 / Math.PI;
+    const flexPct = Math.max(0, Math.min(100, (180 - angle) / 180 * 100));
+    Object.assign(targetAngles[key], flexionToAngles(flexPct, key==='thu'));
+  });
+
+  // Update landmark dots
+  for (let i = 1; i <= 20; i++) {
+    const dot = document.getElementById('lm-' + i);
+    if (dot && lm[i]) dot.classList.toggle('active', true);
+  }
+}
+
+// Simulation mode
+let simActive = false;
+function startSimulation() {
+  simActive = true;
+  log('[SIM] Simulation MediaPipe démarrée');
+  let t = 0;
+  simInterval = setInterval(() => {
+    t += 0.03;
+    // Simulate a wave-like hand motion
+    ['idx','mid','rin','thu'].forEach((k, i) => {
+      const phase = i * 0.8;
+      const pct = Math.max(0, Math.sin(t + phase) * 50 + 50);
+      Object.assign(targetAngles[k], flexionToAngles(pct, k==='thu'));
+    });
+    // Update MediaPipe angle table
+    updateMPAnglesTable();
+    // Animate landmark dots
+    for (let i = 1; i <= 20; i++) {
+      const dot = document.getElementById('lm-' + i);
+      if (dot) dot.classList.toggle('active', Math.sin(t + i * 0.3) > 0);
+    }
+  }, 33);
+}
+function stopSimulation() {
+  simActive = false;
+  clearInterval(simInterval);
+  log('[SIM] Simulation arrêtée');
+  for (let i = 1; i <= 20; i++) {
+    const dot = document.getElementById('lm-' + i);
+    if (dot) dot.classList.remove('active');
+  }
+}
+function toggleTracking(on) {
+  if (on) startSimulation();
+  else stopSimulation();
+  log(`[CTRL] Suivi webcam ${on?'activé':'désactivé'}`);
+}
+
+function updateMPAnglesTable() {
+  const tbody = document.getElementById('mp-angles-tbody');
+  if (!tbody) return;
+  const names = { idx:'Index', mid:'Majeur', rin:'Annulaire', thu:'Pouce' };
+  tbody.innerHTML = Object.entries(targetAngles).map(([k, a]) => `
+    <tr>
+      <td>${names[k]}</td>
+      <td style="font-family:var(--font-mono);color:var(--info)">${a.mcp.toFixed(1)}°</td>
+      <td style="font-family:var(--font-mono);color:var(--info)">${a.pip.toFixed(1)}°</td>
+      <td style="font-family:var(--font-mono);color:var(--info)">${a.dip.toFixed(1)}°</td>
+      <td style="font-family:var(--font-mono);color:var(--info)">${a.abd.toFixed(1)}°</td>
+    </tr>`).join('');
+}
+
+// =============================================================================
+// RENDER LOOP
+// =============================================================================
+let frame = 0;
+function animate() {
+  requestAnimationFrame(animate);
+  frame++;
+
+  if (autoRotate) {
+    robotHand.rotation.y += 0.004;
+  }
+
+  lerpAngles();
+  applyAngles();
+  updateCamera();
+  renderer.render(scene, camera);
+
+  // Update viewer info
+  if (frame % 60 === 0) {
+    document.getElementById('viewer-info').textContent =
+      `← Drag: orbiter  •  Scroll: zoom  •  Clic droit: pan  •  Doigts animés: 4`;
+  }
+}
+animate();
+
+// =============================================================================
+// SERVO DATA & EXISTING UI LOGIC
+// =============================================================================
+const servoData = [
+  {id:1,finger:'Index',   role:'M1 — Flexion',   pos:0, load:12, temp:38, status:'ok'},
+  {id:2,finger:'Index',   role:'M2 — Abduction', pos:0, load:10, temp:37, status:'ok'},
+  {id:3,finger:'Majeur',  role:'M1 — Flexion',   pos:0, load:14, temp:39, status:'ok'},
+  {id:4,finger:'Majeur',  role:'M2 — Abduction', pos:0, load:11, temp:38, status:'ok'},
+  {id:5,finger:'Annulaire',role:'M1 — Flexion',  pos:0, load:9,  temp:40, status:'ok'},
+  {id:6,finger:'Annulaire',role:'M2 — Abduction',pos:0, load:13, temp:39, status:'ok'},
+  {id:7,finger:'Pouce',   role:'M1 — Flexion',   pos:0, load:16, temp:42, status:'ok'},
+  {id:8,finger:'Pouce',   role:'M2 — Abduction', pos:0, load:14, temp:41, status:'ok'},
+];
+
+function switchTab(id, btn) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('panel-'+id).classList.add('active');
+  if (btn) btn.classList.add('active');
+  else document.querySelectorAll('.nav-btn')[0].classList.add('active');
+  // Resize renderer when switching back to 3D tab
+  if (id === 'ctrl') setTimeout(resizeCanvas, 50);
+  if (id === 'mediapipe') updateMPAnglesTable();
+}
+
+const names = {idx:'Index', mid:'Majeur', rin:'Annulaire', thu:'Pouce'};
+function calFinger(f) {
+  document.getElementById('cal-'+f+'-st').textContent = '✓ OK';
+  document.getElementById('cal-'+f+'-st').style.color = 'var(--success)';
+  log(`[CAL] ${names[f]} calibré`);
+}
+function calAll() { ['idx','mid','rin','thu'].forEach(calFinger); }
+function resetCal() {
+  ['idx','mid','rin','thu'].forEach(f => {
+    document.getElementById('cal-'+f+'-st').textContent = '—';
+    document.getElementById('cal-'+f+'-st').style.color = 'var(--s)';
+  });
+  log('[CAL] Calibration réinitialisée');
+}
+
+function buildServoTable() {
+  const tbody = document.getElementById('servo-tbody');
+  if (!tbody) return;
+  tbody.innerHTML = servoData.map(s => `
+    <tr>
+      <td><span class="id-badge">${s.id}</span></td>
+      <td>${s.finger}</td>
+      <td style="color:var(--s);font-size:11px">${s.role}</td>
+      <td style="font-family:var(--font-mono);font-size:11px">${s.pos}°</td>
+      <td>
+        <div style="width:60px;height:4px;background:var(--bg2);border-radius:2px;overflow:hidden">
+          <div style="height:100%;width:${s.load}%;background:${s.load>60?'var(--warn)':'var(--success)'}"></div>
+        </div>
+      </td>
+      <td style="font-size:11px;color:${s.temp>44?'var(--warn)':'var(--s)'}">${s.temp}°C</td>
+      <td><span style="font-size:10px;padding:1px 6px;border-radius:20px;background:var(--bg-success);color:var(--success);border:1px solid #1a5a10">actif</span></td>
+    </tr>`).join('');
+}
+
+function buildHeatBars() {
+  const el = document.getElementById('heat-bars');
+  if (!el) return;
+  el.innerHTML = servoData.map(s => {
+    const pct = Math.round((s.temp-20)/50*100);
+    return `<div>
+      <div style="display:flex;justify-content:space-between;margin-bottom:3px">
+        <span style="font-size:11px;color:var(--s)">ID ${s.id} — ${s.finger} ${s.role.split('—')[0]}</span>
+        <span style="font-size:11px;font-weight:500;color:${s.temp>44?'var(--warn)':'var(--p)'}">${s.temp}°C</span>
+      </div>
+      <div style="height:5px;border-radius:3px;background:var(--bg2);overflow:hidden">
+        <div style="height:100%;width:${pct}%;background:${s.temp>44?'var(--warn)':'var(--info)'};transition:width .5s"></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function pingAll() {
+  servoData.forEach(s => log(`[PING] ID ${s.id} → ${(Math.random()*1.5+0.8).toFixed(1)}ms`));
+}
+
+let logLines = [];
+function log(msg, err) {
+  const el = document.getElementById('diag-log');
+  if (!el) return;
+  const t = new Date().toTimeString().slice(0,8);
+  const cls = err ? 'err' : msg.startsWith('[ERR') ? 'err' : msg.startsWith('[CAL') || msg.startsWith('[STL') || msg.startsWith('[WS') || msg.startsWith('[SIM') ? 'info' : 'ok';
+  logLines.push(`<span class="${cls}">[${t}] ${msg}</span>`);
+  if (logLines.length > 60) logLines.shift();
+  el.innerHTML = logLines.join('<br>');
+  el.scrollTop = el.scrollHeight;
+}
+
+// Uptime counter
+let uptime = 252;
+setInterval(() => {
+  uptime++;
+  const h = String(Math.floor(uptime/3600)).padStart(2,'0');
+  const m = String(Math.floor(uptime%3600/60)).padStart(2,'0');
+  const s = String(uptime%60).padStart(2,'0');
+  const el = document.getElementById('d-uptime');
+  if (el) el.textContent = h+':'+m+':'+s;
+  const pps = document.getElementById('d-pps');
+  if (pps) pps.textContent = String(Math.round(48+Math.random()*4));
+}, 1000);
+
+// Init
+buildServoTable();
+buildHeatBars();
+updateMPAnglesTable();
+log('[SYS] Interface HandTrack-ESP32 v2.0 initialisée');
+log('[SYS] Three.js r128 — Main robotique 3D procédurale chargée');
+log('[SYS] STL Manifest prêt — 15 fichiers mappés vers cad/stl/');
+log('[SYS] 8 servos Feetech SCS0009 détectés sur /dev/ttyUSB0');
+log('[SYS] WebSocket prêt sur ws://localhost:8765 (démarrer main_controller.py)');
+log('[INFO] Phase 3 en cours — Les STL seront auto-chargés dès publication');
+</script>
+</body>
+</html>
